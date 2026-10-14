@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fast-linsolve"
+version = "0.1.0"
+description = "A high-performance linear system solver library: 3 direct + 3 iterative methods, accelerated with Numba JIT and Cython."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "linsolve contributors" }]
+keywords = ["linear-algebra", "numerical-methods", "solver", "numba", "cython", "scientific-computing"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = [
+    "numpy>=1.21",
+]
+
+[project.optional-dependencies]
+# Numba JIT acceleration layer (optional; library falls back to pure NumPy if absent)
+numba = ["numba>=0.57"]
+# Cython static compilation layer (optional; requires a C compiler at build time)
+cython = ["cython>=0.29"]
+dev = [
+    "pytest>=7",
+    "pytest-cov",
+    "sphinx>=5",
+    "sphinx-rtd-theme",
+    "twine",
+    "build",
+]
+
+[project.urls]
+Homepage = "https://example.com/fast-linsolve"
+Repository = "https://example.com/fast-linsolve"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
