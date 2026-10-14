@@ -31,7 +31,7 @@ from ._backend import ACTIVE_BACKEND, Backend, detect_backend
 from .direct import cholesky_solve, gauss_solve, lu_solve
 from .iterative import gauss_seidel, jacobi, sor
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "solve",

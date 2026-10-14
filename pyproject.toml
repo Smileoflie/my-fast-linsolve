@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fast-linsolve"
-version = "0.1.0"
-description = "A high-performance linear system solver library: 3 direct + 3 iterative methods, accelerated with Numba JIT and Cython."
+version = "0.1.1"
+description = "高性能线性方程组求解器库：3 种直接法 + 3 种迭代法，Numba JIT 与 Cython 深度优化。"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
 license-files = ["LICENSE"]
-authors = [{ name = "linsolve contributors" }]
+authors = [{ name = "lielielie" }]
 keywords = ["linear-algebra", "numerical-methods", "solver", "numba", "cython", "scientific-computing"]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -37,8 +37,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://example.com/fast-linsolve"
-Repository = "https://example.com/fast-linsolve"
+Homepage = "https://github.com/Smileoflie/my-fast-linsolve"
+Repository = "https://github.com/Smileoflie/my-fast-linsolve"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
