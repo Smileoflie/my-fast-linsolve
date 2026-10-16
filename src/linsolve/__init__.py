@@ -27,17 +27,27 @@ from __future__ import annotations
 
 import numpy as np
 
-from ._backend import ACTIVE_BACKEND, Backend, detect_backend
-from .direct import cholesky_solve, gauss_solve, lu_solve
+from ._backend import ACTIVE_BACKEND, Backend, backend_info, detect_backend
+from .direct import (
+    cholesky_factor,
+    cholesky_solve,
+    cholesky_solve_factorized,
+    gauss_solve,
+    lu_factor,
+    lu_solve,
+    lu_solve_factorized,
+)
 from .iterative import gauss_seidel, jacobi, sor
 
-__version__ = "0.1.1"
+__version__ = "0.3.0"
 
 __all__ = [
     "solve",
     "gauss_solve", "lu_solve", "cholesky_solve",
+    "lu_factor", "lu_solve_factorized",
+    "cholesky_factor", "cholesky_solve_factorized",
     "jacobi", "gauss_seidel", "sor",
-    "ACTIVE_BACKEND", "Backend", "detect_backend",
+    "ACTIVE_BACKEND", "Backend", "detect_backend", "backend_info",
     "__version__",
 ]
 
@@ -58,6 +68,11 @@ def solve(A, b, method: str = "lu", backend: str = "auto", **kwargs):
     """
     m = method.lower()
     if m in _DIRECT:
+        if kwargs:
+            raise TypeError(
+                f"method={method!r} is a direct solver and takes no extra "
+                f"keyword arguments; got {sorted(kwargs)}."
+            )
         return _DIRECT[m](A, b, backend=backend)
     if m == "jacobi":
         return jacobi(A, b, backend=backend, **kwargs)

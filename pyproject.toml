@@ -1,10 +1,14 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+# setuptools>=77 is required for PEP 639 license metadata (license = "MIT" + license-files).
+# numpy and Cython are build-time deps of the *optional* Cython extension: with them
+# present the build is deterministic, and setup.py degrades gracefully (with a warning)
+# when no C compiler is available.
+requires = ["setuptools>=77", "wheel", "numpy>=1.21", "Cython>=3.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "fast-linsolve"
-version = "0.1.1"
+dynamic = ["version"]
 description = "高性能线性方程组求解器库：3 种直接法 + 3 种迭代法，Numba JIT 与 Cython 深度优化。"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -43,9 +47,24 @@ Repository = "https://github.com/Smileoflie/my-fast-linsolve"
 [tool.setuptools]
 package-dir = { "" = "src" }
 
+[tool.setuptools.dynamic]
+version = { attr = "linsolve.__version__" }
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.exclude-package-data]
+# keep build inputs out of the wheel (the sdist still ships them)
+"*" = ["*.pyx", "*.c", "*.nbi", "*.nbc"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.cibuildwheel]
+build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
+skip = "*-musllinux_* *_i686"
+# a wheel without the compiled kernel is a broken release, not a fallback
+environment = { LINSOLVE_REQUIRE_CYTHON = "1" }
+test-requires = ["numpy"]
+test-command = "python -c \"import sys, linsolve; print(linsolve.backend_info()); sys.exit(0 if linsolve.ACTIVE_BACKEND.value == 'cython' else 1)\""

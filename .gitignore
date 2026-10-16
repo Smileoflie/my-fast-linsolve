@@ -10,8 +10,15 @@ dist/
 *.egg
 .eggs/
 
-# Cython generated C sources
+# Compiled extensions / Cython generated C
 src/linsolve/_cython_core.c
+*.pyd
+*.so
+*.dll
+
+# numba on-disk cache
+*.nbi
+*.nbc
 
 # Test / coverage
 .pytest_cache/
@@ -31,3 +38,7 @@ env/
 .vscode/
 .idea/
 *.swp
+
+# Personal notes and agent session data (keep local, never publish)
+INTERVIEW_PREP.md
+.workbuddy/

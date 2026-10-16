@@ -24,7 +24,7 @@ def detect_backend() -> Backend:
     except Exception:
         pass
     try:
-        from ._numba import _HAVE_NUMBA
+        from ._kernels import _HAVE_NUMBA
         if _HAVE_NUMBA:
             return Backend.NUMBA
     except Exception:
@@ -33,6 +33,20 @@ def detect_backend() -> Backend:
 
 
 ACTIVE_BACKEND: Backend = detect_backend()
+
+
+def kernels_for(backend: "Backend"):
+    """Return the namespace that holds the kernels for ``backend``.
+
+    Every backend exposes the same kernel names (``gauss_solve``,
+    ``lu_factor``, ``jacobi``, ...), so callers never need to know which
+    implementation they are talking to.
+    """
+    if backend is Backend.CYTHON:
+        from . import _cython_core
+        return _cython_core
+    from . import _kernels
+    return _kernels.nb if backend is Backend.NUMBA else _kernels
 
 
 def resolve(backend: str | Backend) -> Backend:
@@ -46,4 +60,33 @@ def resolve(backend: str | Backend) -> Backend:
     except ValueError:
         raise ValueError(
             f"Unknown backend {backend!r}; choose from 'auto','cython','numba','python'."
+        ) from None
+
+
+def backend_info() -> dict:
+    """Report availability of each backend, with the reason when unavailable.
+
+    Useful for diagnosing silent degradation, e.g. a Cython extension whose
+    ABI no longer matches the installed NumPy::
+
+        >>> from linsolve import backend_info
+        >>> backend_info()["cython"]
+        (False, 'ImportError: ...')
+    """
+    info = {}
+    try:
+        from . import _cython_core  # noqa: F401
+        info["cython"] = (True, "compiled extension available")
+    except Exception as exc:
+        info["cython"] = (False, f"{type(exc).__name__}: {exc}")
+    try:
+        from ._kernels import _HAVE_NUMBA
+        info["numba"] = (
+            (True, "numba available") if _HAVE_NUMBA
+            else (False, "numba not installed")
         )
+    except Exception as exc:
+        info["numba"] = (False, f"{type(exc).__name__}: {exc}")
+    info["python"] = (True, "pure-Python reference, always available")
+    info["active"] = ACTIVE_BACKEND.value
+    return info

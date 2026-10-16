@@ -11,6 +11,7 @@ times each backend on a well-conditioned dense system.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -52,60 +53,98 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--n", type=int, default=500, help="matrix size")
     p.add_argument("--repeat", type=int, default=3)
+    p.add_argument("--skip-python", action="store_true",
+                   help="skip the pure-Python baseline entirely")
     args = p.parse_args()
     n = args.n
+    # The pure-Python backend is an interpreted O(n^3) loop: ~10 s at n=400 and
+    # ~3 min at n=1000. Never let a default run sit there for minutes.
+    py_limit = 400
+    measure_py = (not args.skip_python) and n <= py_limit
 
     print(f"Active backend: {ACTIVE_BACKEND.value}")
     print(f"Matrix size: {n} x {n}")
-    print()
+    for var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+        print(f"{var}={os.environ.get(var, '<unset>')}", end="  ")
+    print("\n(hint: set those to 1 for a single-threaded apples-to-apples"
+          " comparison against the Numba kernels)\n")
 
-    # ---- direct: LU solve on dense ----------------------------------------
-    A, b = make_system(n, spd=False)
-    # warmup numba compilation
-    lu_solve(A, b, backend="numba")
     try:
         from linsolve import _cython_core  # noqa: F401
         cy_avail = True
     except Exception:
         cy_avail = False
 
-    rows = []
-    t_py = timeit(lambda: lu_solve(A, b, backend="python"), repeat=1 if n > 300 else args.repeat)
-    rows.append(("LU pure Python", t_py))
+    # ---- direct: LU solve on dense ----------------------------------------
+    A, b = make_system(n, spd=False)
+    lu_solve(A, b, backend="numba")  # warmup JIT compilation (not timed)
+
+    lu_rows = []
+    t_py = None
+    if measure_py:
+        t_py = timeit(lambda: lu_solve(A, b, backend="python"), repeat=1)
+        lu_rows.append(("pure Python", t_py))
     t_nb = timeit(lambda: lu_solve(A, b, backend="numba"), repeat=args.repeat)
-    rows.append(("LU Numba JIT", t_nb))
+    lu_rows.append(("Numba JIT", t_nb))
+    t_cy = None
     if cy_avail:
         t_cy = timeit(lambda: lu_solve(A, b, backend="cython"), repeat=args.repeat)
-        rows.append(("LU Cython", t_cy))
+        lu_rows.append(("Cython", t_cy))
     t_np = timeit(lambda: np.linalg.solve(A, b), repeat=args.repeat)
-    rows.append(("LU numpy.linalg.solve", t_np))
+    lu_rows.append(("numpy.linalg.solve", t_np))
 
     # ---- Cholesky on SPD --------------------------------------------------
     Aspd, bspd = make_system(n, spd=True)
     cholesky_solve(Aspd, bspd, backend="numba")  # warmup
-    t_py_c = timeit(lambda: cholesky_solve(Aspd, bspd, backend="python"),
-                    repeat=1 if n > 300 else args.repeat)
+
+    ch_rows = []
+    t_py_c = None
+    if measure_py:
+        t_py_c = timeit(lambda: cholesky_solve(Aspd, bspd, backend="python"), repeat=1)
+        ch_rows.append(("pure Python", t_py_c))
     t_nb_c = timeit(lambda: cholesky_solve(Aspd, bspd, backend="numba"), repeat=args.repeat)
-    rows.append(("Cholesky pure Python", t_py_c))
-    rows.append(("Cholesky Numba JIT", t_nb_c))
-    t_np_c = timeit(lambda: np.linalg.solve(Aspd, bspd), repeat=args.repeat)
-    rows.append(("Cholesky numpy (ref)", t_np_c))
-
-    # ---- print table ------------------------------------------------------
-    print(f"{'method':<28}{'time (s)':>12}{'vs NumPy':>12}{'vs pure Py':>14}")
-    print("-" * 66)
-    baseline_py = dict(rows)["LU pure Python"]
-    for name, t in rows:
-        ratio_np = t_np / t if t > 0 else float("inf")
-        ratio_py = baseline_py / t if t > 0 else float("inf")
-        print(f"{name:<28}{t:>12.4f}{ratio_np:>11.2f}x{ratio_py:>13.1f}x")
-
-    print()
-    if t_nb > 0:
-        print(f"Numba speedup over pure Python: {baseline_py / t_nb:,.0f}x")
+    ch_rows.append(("Numba JIT", t_nb_c))
     if cy_avail:
-        print(f"Cython speedup over Numba:     {t_nb / t_cy:.2f}x")
-    print(f"Numba LU as % of NumPy:        {t_np / t_nb * 100:.1f}%")
+        ch_rows.append(("Cython",
+                        timeit(lambda: cholesky_solve(Aspd, bspd, backend="cython"),
+                               repeat=args.repeat)))
+    t_np_c = timeit(lambda: np.linalg.solve(Aspd, bspd), repeat=args.repeat)
+    ch_rows.append(("numpy.linalg.solve", t_np_c))
+
+    # ---- print tables (each group uses its own baselines) -----------------
+    def print_group(title, rows, py_base, np_base):
+        print(f"[{title}]")
+        print(f"{'method':<22}{'time (s)':>12}{'vs NumPy':>12}{'vs pure Py':>14}")
+        print("-" * 60)
+        for name, t in rows:
+            ratio_np = np_base / t if t > 0 else float("inf")
+            ratio_py = (py_base / t) if py_base else float("nan")
+            py_str = f"{ratio_py:>13.1f}x" if py_base else f"{'n/a':>14}"
+            print(f"{name:<22}{t:>12.4f}{ratio_np:>11.2f}x{py_str}")
+        print()
+
+    print_group("LU solve (dense)", lu_rows, t_py, t_np)
+    print_group("Cholesky solve (SPD)", ch_rows, t_py_c, t_np_c)
+
+    if not measure_py:
+        print(f"(pure-Python baseline skipped: n={n} > {py_limit}; the interpreted "
+              f"O(n^3) loop needs roughly {6e-7 * n ** 3:,.0f} s per call)\n")
+
+    def vs_numpy(label, t, t_ref):
+        r = t_ref / t
+        who = f"{r:.2f}x faster" if r >= 1 else f"{1 / r:.2f}x slower"
+        print(f"{label:<32}{who:>10} than NumPy")
+
+    if t_py:
+        print(f"{'Numba LU speedup over pure Python:':<32}{t_py / t_nb:,.0f}x")
+    else:
+        print(f"{'Numba LU speedup over pure Python:':<32}{'not measured':>10}")
+    if cy_avail:
+        print(f"{'Cython vs Numba (LU):':<32}{t_nb / t_cy:.2f}x")
+    vs_numpy("Numba LU", t_nb, t_np)
+    if cy_avail:
+        vs_numpy("Cython LU", t_cy, t_np)
+    vs_numpy("Numba Cholesky", t_nb_c, t_np_c)
 
 
 if __name__ == "__main__":
