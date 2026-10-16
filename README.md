@@ -151,7 +151,12 @@ sphinx-build -b html docs/source docs/build
 
 CI（`.github/workflows/ci.yml`）在 Linux/Windows/macOS × Python 3.9–3.13 上跑测试，
 并断言编译后端确实生效（`LINSOLVE_REQUIRE_CYTHON=1`：扩展没编出来即失败，而不是
-静默降级）。打 `v*` tag 时用 cibuildwheel 构建各平台 wheel 并发布到 PyPI。
+静默降级）。打 `v*` tag 时用 cibuildwheel 构建各平台 wheel。
+
+自动发布到 PyPI 需要各做一步配置：在 PyPI 项目里添加 trusted publisher（或改用
+`PYPI_API_TOKEN` secret），然后在仓库 **Settings → Secrets and variables → Actions
+→ Variables** 新建变量 `PYPI_PUBLISH_ENABLED = true`。未设置时 `publish` 任务会自动
+跳过，因此发版不会出现无意义的失败。
 
 ## 项目结构
 

@@ -33,8 +33,13 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install "numpy>=1.21" "Cython>=3.0" pytest numba
-          pip install -e . --no-build-isolation
+          pip install pytest numba
+          # Plain `pip install -e .`: build isolation pulls setuptools>=77,
+          # numpy and Cython from [build-system].requires. Do NOT add
+          # --no-build-isolation here -- Python 3.12+ venvs ship pip only, so
+          # there is no setuptools, and the build dies with
+          # BackendUnavailable: Cannot import 'setuptools.build_meta'.
+          pip install -e .
 
       - name: Backends available
         run: python -c "import linsolve; print(linsolve.backend_info())"
@@ -57,8 +62,8 @@ jobs:
           python-version: "3.12"
       - run: |
           python -m pip install --upgrade pip
-          pip install "numpy>=1.21" "Cython>=3.0" numba
-          pip install -e . --no-build-isolation
+          pip install numba
+          pip install -e .
       - name: Single-threaded comparison against LAPACK
         env:
           OMP_NUM_THREADS: "1"
@@ -106,7 +111,11 @@ jobs:
     name: publish to PyPI
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Opt in only after configuring PyPI trusted publishing for this repo
+    # (PyPI -> project -> Publishing -> Add a new pending publisher), or by
+    # switching the action to a PYPI_API_TOKEN secret. Without the variable the
+    # job is skipped, so a release never shows up as a spurious failure.
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PYPI_PUBLISH_ENABLED == 'true'
     environment: pypi
     permissions:
       id-token: write   # OIDC trusted publishing, no API token needed
